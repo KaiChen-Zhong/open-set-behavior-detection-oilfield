@@ -271,7 +271,7 @@ class MultiTaskDetector(nn.Module):
                         "relation_scores": torch.zeros(0, 0, self.spatial_head.num_relation_types),
                         "distance_preds": torch.zeros(0, 0, 1),
                         "violation_pairs": torch.zeros(0, 2, dtype=torch.long),
-                        "node_features": torch.zeros(0, self.spatial_head.distance_threshold.__class__),
+                        "node_features": torch.zeros(0, self.spatial_head.hidden_dim),
                     }
                 spatial_results_batch.append(result)
             output["spatial_results"] = spatial_results_batch
