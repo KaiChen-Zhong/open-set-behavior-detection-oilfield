@@ -1,0 +1,98 @@
+# Multi-Task Learning Configuration
+# Combined detection + classification + spatial reasoning
+
+_base_: "../base_config.yaml"
+
+model:
+  name: "multitask_model"
+
+  # Shared backbone
+  backbone:
+    type: "SwinTransformer"
+    variant: "swin_small"
+    pretrained: true
+    out_indices: [1, 2, 3]
+    frozen_stages: 0
+
+  # Feature Pyramid Network
+  neck:
+    type: "FPN"
+    in_channels: [192, 384, 768]
+    out_channels: 256
+    num_outs: 5
+
+  # Multi-task heads
+  heads:
+    # Task 1: Object Detection (open-set)
+    detection:
+      enabled: true
+      type: "OpenSetHead"
+      in_channels: 256
+      num_known_classes: 4
+      weight: 1.0
+
+    # Task 2: Violation Classification
+    classification:
+      enabled: true
+      type: "ClassificationHead"
+      in_channels: 256
+      num_classes: 5  # 4 known + 1 unknown
+      hidden_dim: 512
+      dropout: 0.3
+      weight: 0.5
+
+    # Task 3: Spatial Relationship Reasoning
+    spatial_reasoning:
+      enabled: true
+      type: "SpatialReasoningHead"
+      in_channels: 256
+      hidden_dim: 256
+      # Distance-based violation detection
+      distance_threshold: 2.0  # meters (calibrated)
+      # Spatial relation types
+      relation_types:
+        - "too_close"        # Objects within unsafe distance
+        - "blocking"         # Object blocking safety equipment
+        - "improper_zone"    # Object in prohibited zone
+        - "height_violation" # Object at dangerous height
+      weight: 0.3
+
+  # Multi-task fusion
+  fusion:
+    type: "AttentionFusion"
+    in_channels: 256
+    num_heads: 8
+    dropout: 0.1
+
+# Task-specific loss weights
+loss:
+  detection:
+    cls_weight: 1.0
+    bbox_weight: 2.0
+    obj_weight: 1.0
+    unknown_weight: 0.5
+  classification:
+    ce_weight: 1.0
+    label_smoothing: 0.1
+  spatial_reasoning:
+    relation_weight: 1.0
+    distance_weight: 0.5
+
+# Multi-task training strategy
+multitask_training:
+  strategy: "joint"  # joint, alternating, gradnorm
+  # GradNorm settings (for automatic loss weight balancing)
+  gradnorm:
+    enabled: false
+    alpha: 1.5
+    update_every: 20
+  # Task sampling ratios (for alternating strategy)
+  task_ratios:
+    detection: 0.5
+    classification: 0.3
+    spatial_reasoning: 0.2
+
+training:
+  epochs: 150
+  batch_size: 8
+  warmup_epochs: 10
