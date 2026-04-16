@@ -1,0 +1,90 @@
+# Continual / Incremental Learning Configuration
+# Handles new violation categories without forgetting old ones
+
+_base_: "../base_config.yaml"
+
+model:
+  name: "continual_detector"
+  # Inherits backbone and neck from base open-set model
+  backbone:
+    type: "SwinTransformer"
+    variant: "swin_tiny"
+    pretrained: true
+    frozen_stages: 1  # Freeze early layers to preserve features
+
+# Incremental learning settings
+continual_learning:
+  strategy: "replay"  # replay, ewc, lwf, icarl
+  num_tasks: 5        # Expected number of incremental tasks
+
+  # Replay buffer settings
+  replay_buffer:
+    enabled: true
+    type: "ReservoirSampling"  # reservoir, herding, random
+    max_size: 2000             # Total buffer capacity
+    samples_per_class: 50      # Max exemplars per class
+    selection_strategy: "herding"  # herding, random, entropy
+    # Memory update frequency
+    update_every: 1  # Update buffer every N epochs
+
+  # Elastic Weight Consolidation (EWC)
+  ewc:
+    enabled: false
+    lambda: 5000.0   # Regularization strength
+    online: true     # Online EWC vs standard EWC
+    gamma: 1.0       # Online EWC decay factor
+
+  # Learning Without Forgetting (LwF)
+  lwf:
+    enabled: false
+    alpha: 1.0   # Distillation loss weight
+    temperature: 2.0  # Distillation temperature
+
+  # iCaRL settings
+  icarl:
+    enabled: false
+    memory_size: 2000
+    feature_extractor_epochs: 20
+
+  # Prototype evolution for open-set classes
+  prototype_evolution:
+    enabled: true
+    update_rate: 0.1  # Momentum update rate for prototypes
+    min_samples: 5    # Min samples to update prototype
+
+# Task incremental setup
+tasks:
+  task_0:
+    name: "initial"
+    classes: ["no_helmet", "phone_usage"]
+    epochs: 50
+
+  task_1:
+    name: "add_gas_cylinder"
+    classes: ["no_helmet", "phone_usage", "gas_cylinder_viol"]
+    epochs: 30
+    new_classes: ["gas_cylinder_viol"]
+
+  task_2:
+    name: "add_crane"
+    classes: ["no_helmet", "phone_usage", "gas_cylinder_viol", "crane_outrigger"]
+    epochs: 30
+    new_classes: ["crane_outrigger"]
+
+# Forgetting mitigation
+forgetting:
+  knowledge_distillation:
+    enabled: true
+    temperature: 4.0
+    alpha: 0.5  # Balance between new task and distillation
+
+  feature_distillation:
+    enabled: true
+    layers: ["backbone.layer3", "backbone.layer4"]
+    weight: 0.1
+
+training:
+  epochs: 50  # Per task
+  batch_size: 8
+  # Replay batch ratio
+  replay_ratio: 0.3  # 30% of batch from replay buffer

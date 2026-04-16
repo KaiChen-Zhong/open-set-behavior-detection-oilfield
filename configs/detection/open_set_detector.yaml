@@ -1,0 +1,90 @@
+# Open-Set Detector Configuration
+# Unknown-aware detection with Grounding DINO / OpenDet approach
+
+_base_: "../base_config.yaml"
+
+model:
+  name: "open_set_detector"
+  backbone:
+    type: "SwinTransformer"  # or "CSPDarknet"
+    variant: "swin_tiny"     # swin_tiny, swin_small, swin_base
+    pretrained: true
+    pretrained_weights: "swin_tiny_patch4_window7_224.pth"
+    out_indices: [1, 2, 3]
+    frozen_stages: 1
+
+  neck:
+    type: "FPN"
+    in_channels: [192, 384, 768]
+    out_channels: 256
+    num_outs: 5
+
+  # Open-set detection head (unknown-aware)
+  detection_head:
+    type: "OpenSetHead"
+    in_channels: 256
+    num_known_classes: 4
+    feat_channels: 256
+    stacked_convs: 4
+    # Unknown-aware logit adjustment
+    unknown_aware: true
+    unk_k: 5  # Top-k unknown score estimation
+    objectness_score: true
+    # Prototype-based open-set recognition
+    use_prototypes: true
+    prototype_dim: 256
+    num_prototypes_per_class: 10
+
+  # Grounding DINO integration (optional, for open-vocabulary)
+  grounding_dino:
+    enabled: false
+    model_id: "IDEA-Research/grounding-dino-tiny"
+    text_threshold: 0.25
+    box_threshold: 0.35
+    text_queries:
+      - "no helmet"
+      - "phone usage"
+      - "gas cylinder placement violation"
+      - "crane outrigger"
+      - "safety violation"
+
+training:
+  epochs: 100
+  batch_size: 8  # Smaller batch for larger model
+  amp: true
+  gradient_clip: 10.0
+
+  # Multi-scale training
+  multi_scale: true
+  scale_range: [0.5, 1.5]
+
+optimizer:
+  name: "AdamW"
+  lr: 2.5e-5
+  weight_decay: 1.0e-4
+
+# Loss configuration
+loss:
+  # Detection losses
+  classification:
+    type: "FocalLoss"
+    alpha: 0.25
+    gamma: 2.0
+    weight: 1.0
+  regression:
+    type: "GIoULoss"
+    weight: 2.0
+  # Open-set specific losses
+  unknown_objectness:
+    type: "BCELoss"
+    weight: 0.5
+  prototype_contrastive:
+    type: "SupConLoss"
+    temperature: 0.07
+    weight: 0.1
+
+# Open-set evaluation thresholds
+open_set:
+  known_threshold: 0.7   # Min score to classify as known
+  unknown_threshold: 0.3  # Score below which it's unknown
+  wilderness_impact_threshold: 0.5

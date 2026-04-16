@@ -1,0 +1,76 @@
+# Base configuration for Open-Set Safety Violation Detection
+# Oil Depot Maintenance Operations
+
+project:
+  name: "open-set-oilfield-safety"
+  version: "1.0.0"
+  description: "Open-Set Multi-Task Deep Learning for Oilfield Safety Violation Detection"
+
+# Dataset configuration
+data:
+  root: "data/"
+  train_ann: "data/annotations/train.json"
+  val_ann: "data/annotations/val.json"
+  test_ann: "data/annotations/test.json"
+  train_img_dir: "data/images/train"
+  val_img_dir: "data/images/val"
+  test_img_dir: "data/images/test"
+  img_size: [640, 640]
+  num_workers: 4
+
+  # Known violation categories (closed-set classes)
+  known_classes:
+    - "no_helmet"          # Worker not wearing safety helmet
+    - "phone_usage"        # Worker using phone
+    - "gas_cylinder_viol"  # Gas cylinder placement violation
+    - "crane_outrigger"    # Crane outrigger detection
+
+  # Unknown / open-set categories (to be detected at inference)
+  unknown_classes:
+    - "unknown_violation"
+
+  # Number of known classes
+  num_known_classes: 4
+  num_classes: 5  # known + unknown
+
+# Training configuration
+training:
+  epochs: 100
+  batch_size: 16
+  seed: 42
+  device: "cuda"
+  amp: true  # Automatic Mixed Precision
+  gradient_clip: 10.0
+  checkpoint_dir: "checkpoints/"
+  log_dir: "logs/"
+  save_every: 10
+  val_every: 5
+
+# Optimizer
+optimizer:
+  name: "AdamW"
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+
+# Learning rate scheduler
+scheduler:
+  name: "CosineAnnealingLR"
+  T_max: 100
+  eta_min: 1.0e-6
+  warmup_epochs: 5
+  warmup_lr_init: 1.0e-6
+
+# Wandb experiment tracking
+wandb:
+  enabled: true
+  project: "oilfield-safety-detection"
+  entity: null  # Set to your W&B username/org
+  tags: ["open-set", "multitask", "oilfield"]
+
+# Evaluation
+evaluation:
+  iou_thresholds: [0.5, 0.75]
+  confidence_threshold: 0.25
+  nms_threshold: 0.45
+  open_set_threshold: 0.5  # Score threshold for unknown class
